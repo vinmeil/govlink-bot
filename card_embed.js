@@ -3,7 +3,8 @@ import { EmbedBuilder } from "discord.js";
 const createEmbed = (uuid, first_name, last_name, birthday, currentPage = 0, totalPages = 1) => {
   return (
     new EmbedBuilder()
-      .setColor(0xd11013)
+      // .setColor(0xd11013)
+      .setColor(0x6943e8)
       .setTitle(first_name + " " + last_name + "'s Info")
       // .setAuthor({
       //   name: "GovLink",

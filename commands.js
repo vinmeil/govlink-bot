@@ -12,7 +12,15 @@ const TEST_COMMAND = {
 
 const ASK_COMMAND = {
   name: "ask",
-  description: "Fetch random person data and display in paginated cards",
+  description: "Ask for birthday data - include a number in your message (e.g., 'get me 5 people')",
+  options: [
+    {
+      type: 3, // STRING
+      name: "message",
+      description: "Your request (must include a number between 1-50)",
+      required: true,
+    },
+  ],
   type: 1,
   integration_types: [0, 1],
   contexts: [0, 1, 2],

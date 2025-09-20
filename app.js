@@ -5,20 +5,169 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
 } from "discord.js";
 import { createEmbed } from "./card_embed.js";
 
 // Create Discord client
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 // To keep track of paginated data
 const paginatedData = {};
 
+// To keep track of users waiting to provide numbers
+const waitingForNumber = new Map();
+
 // Bot ready event
 client.once("clientReady", () => {
   console.log(`Logged in as ${client.user.tag}!`);
+});
+
+// Listen for regular messages (for number follow-ups)
+client.on("messageCreate", async (message) => {
+  // Ignore bot messages
+  if (message.author.bot) return;
+
+  // Check if user is waiting to provide a number
+  if (waitingForNumber.has(message.author.id)) {
+    const userContext = waitingForNumber.get(message.author.id);
+
+    // Extract numbers from their message
+    const numberMatches = message.content.match(/\b\d+\b/g);
+
+    if (numberMatches && numberMatches.length > 0) {
+      // Found a number! Process their request
+      const numbers = numberMatches.map((num) => parseInt(num));
+      const numberOfPeople = Math.min(...numbers);
+
+      // Validate range
+      if (numberOfPeople < 1 || numberOfPeople > 50) {
+        const rangeErrorEmbed = new EmbedBuilder()
+          .setColor(0xd11013)
+          .setTitle("❌ Invalid Number Range")
+          .setDescription(`The number must be between **1** and **50**!`)
+          .addFields(
+            { name: "Your Number:", value: `**${numberOfPeople}**`, inline: true },
+            { name: "Valid Range:", value: "**1-50**", inline: true }
+          )
+          .setTimestamp();
+
+        return await message.reply({
+          embeds: [rangeErrorEmbed],
+        });
+      }
+
+      // Remove from waiting list
+      waitingForNumber.delete(message.author.id);
+
+      // Process the API request
+      try {
+        // Try to react, but don't fail if we can't
+        try {
+          await message.react("⏳");
+        } catch (reactionError) {
+          console.log("Could not add reaction (missing permissions)");
+        }
+
+        const apiUrl = `https://fakerapi.it/api/v2/custom?_quantity=${numberOfPeople}&_locale=en_US&uuid=uuid&first_name=firstName&last_name=lastName&birthday=date`;
+        const response = await fetch(apiUrl);
+        const apiData = await response.json();
+
+        if (apiData && apiData.data && apiData.data.length > 0) {
+          // Store the data with pagination info using message ID
+          const gameId = message.id;
+          paginatedData[gameId] = {
+            items: apiData.data,
+            currentPage: 0,
+          };
+
+          // Get first person for initial display
+          const firstPerson = apiData.data[0];
+          const totalPages = apiData.data.length;
+
+          // Create embed using your createEmbed function
+          const embed = createEmbed(
+            firstPerson.uuid,
+            firstPerson.first_name,
+            firstPerson.last_name,
+            firstPerson.birthday,
+            0, // currentPage
+            totalPages
+          );
+
+          const components = [];
+
+          // Add navigation buttons if there are multiple pages
+          if (totalPages > 1) {
+            const row = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`prev_page_${gameId}`)
+                .setLabel("◀ Previous")
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true), // First page, so prev is disabled
+              new ButtonBuilder()
+                .setCustomId(`next_page_${gameId}`)
+                .setLabel("Next ▶")
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(totalPages === 1)
+            );
+            components.push(row);
+          }
+
+          // Remove the processing reaction and send result
+          try {
+            await message.reactions.removeAll();
+          } catch (reactionError) {
+            console.log("Could not remove reactions (missing permissions)");
+          }
+          await message.reply({
+            embeds: [embed],
+            components: components,
+          });
+        } else {
+          try {
+            await message.reactions.removeAll();
+          } catch (reactionError) {
+            console.log("Could not remove reactions (missing permissions)");
+          }
+          await message.reply({
+            content: "Sorry, couldn't fetch data from the API.",
+          });
+        }
+      } catch (error) {
+        console.error("Error processing follow-up request:", error);
+        try {
+          await message.reactions.removeAll();
+        } catch (reactionError) {
+          console.log("Could not remove reactions (missing permissions)");
+        }
+        await message.reply({
+          content: "Sorry, there was an error processing your request.",
+        });
+      }
+    } else {
+      // Still no number found, remind them
+      const reminderEmbed = new EmbedBuilder()
+        .setColor(0xd11013)
+        .setTitle("🔢 Still waiting for a number...")
+        .setDescription("Please send a message that includes a number between 1 and 50!")
+        .addFields({
+          name: "Examples:",
+          value: "• `Can you get me 5 people?`\n• `20 please`\n• `I need 10 birthdays`",
+        })
+        .setTimestamp();
+
+      await message.reply({
+        embeds: [reminderEmbed],
+      });
+    }
+  }
 });
 
 // Handle slash command interactions
@@ -90,18 +239,70 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "test") {
     await interaction.reply({
       content: "🎉 Test command works!",
-      ephemeral: true,
+      flags: [4096], // EPHEMERAL flag
     });
   }
 
   if (commandName === "ask") {
     try {
+      // Get the message parameter
+      const userMessage = interaction.options.getString("message");
+
+      // Extract all numbers from the user's message
+      const numberMatches = userMessage.match(/\b\d+\b/g);
+
+      if (!numberMatches || numberMatches.length === 0) {
+        // Add user to waiting list
+        waitingForNumber.set(interaction.user.id, {
+          originalMessage: userMessage,
+          timestamp: Date.now(),
+        });
+
+        const errorEmbed = new EmbedBuilder()
+          .setColor(0xd11013)
+          .setTitle("❌ Number Required")
+          .setDescription("Please include a number in your message!")
+          .addFields({
+            name: "What to do next:",
+            value:
+              "Just send me a regular message with a number between **1** and **50**!\n\nFor example: `Can you get me 5 people?` or just `20 please`",
+          })
+          .setFooter({ text: "💡 You don't need to use /ask again, just type normally!" })
+          .setTimestamp();
+
+        return await interaction.reply({
+          embeds: [errorEmbed],
+          // Removed flags to   make it public and permanent
+        });
+      }
+
+      // Get the first (smallest) number found
+      const numbers = numberMatches.map((num) => parseInt(num));
+      const numberOfPeople = Math.min(...numbers);
+
+      // Validate the number is within range
+      if (numberOfPeople < 1 || numberOfPeople > 50) {
+        const rangeErrorEmbed = new EmbedBuilder()
+          .setColor(0xd11013)
+          .setTitle("❌ Invalid Number Range")
+          .setDescription(`The number must be between **1** and **50**!`)
+          .addFields(
+            { name: "Your Number:", value: `**${numberOfPeople}**`, inline: true },
+            { name: "Valid Range:", value: "**1-50**", inline: true }
+          )
+          .setTimestamp();
+
+        return await interaction.reply({
+          embeds: [rangeErrorEmbed],
+          // Removed flags to make it public and permanent
+        });
+      }
+
       // Defer reply for longer processing
       await interaction.deferReply();
 
-      // Fetch data from the API
-      const apiUrl =
-        "https://fakerapi.it/api/v2/custom?_quantity=10&_locale=en_US&uuid=uuid&first_name=firstName&last_name=lastName&birthday=date";
+      // Fetch data from the API with the specified quantity
+      const apiUrl = `https://fakerapi.it/api/v2/custom?_quantity=${numberOfPeople}&_locale=en_US&uuid=uuid&first_name=firstName&last_name=lastName&birthday=date`;
       const response = await fetch(apiUrl);
       const apiData = await response.json();
 
@@ -169,7 +370,7 @@ client.on("interactionCreate", async (interaction) => {
         try {
           await interaction.reply({
             content: "Sorry, there was an error processing your request.",
-            ephemeral: true,
+            flags: [4096], // EPHEMERAL flag
           });
         } catch (replyError) {
           console.error("Error sending reply:", replyError);

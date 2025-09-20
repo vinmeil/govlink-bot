@@ -1,108 +1,182 @@
-# Getting Started app for Discord
+# GovLink Discord Bot
 
-This project contains a basic rock-paper-scissors-style Discord app written in JavaScript, built for the [getting started guide](https://discord.com/developers/docs/getting-started).
+A Discord bot that responds to `/ask` commands with random birthday data displayed in paginated embeds. The bot extracts numbers from user messages and fetches birthday information from a public API.
 
-![Demo of app](https://github.com/discord/discord-example-app/raw/main/assets/getting-started-demo.gif?raw=true)
+![Demo of bot functionality](assets/getting-started-demo.gif)
 
-## Project structure
-Below is a basic overview of the project structure:
+## 🚀 Features
+
+- **Slash Command**: `/ask` command that accepts natural language input
+- **Number Extraction**: Automatically extracts numbers from user messages
+- **Paginated Embeds**: Beautiful, paginated display of birthday data
+- **Error Handling**: Graceful error handling with styled error messages
+- **24/7 Operation**: Deployed on AWS ECS/Fargate for continuous availability
+
+## 📁 Project Structure
 
 ```
-├── examples    -> short, feature-specific sample apps
-│   ├── app.js  -> finished app.js code
-│   ├── button.js
-│   ├── command.js
-│   ├── modal.js
-│   ├── selectMenu.js
-├── .env.sample -> sample .env file
-├── app.js      -> main entrypoint for app
-├── commands.js -> slash command payloads + helpers
-├── game.js     -> logic specific to RPS
-├── utils.js    -> utility functions and enums
-├── package.json
-├── README.md
-└── .gitignore
+├── app.js              -> main bot logic (Discord.js)
+├── card_embed.js       -> embed builder for birthday cards
+├── utils.js           -> utility functions and API helpers
+├── commands.js        -> slash command definitions
+├── Dockerfile         -> Docker container configuration
+├── deploy.sh          -> AWS ECS deployment script
+├── ECS_DEPLOYMENT.md  -> detailed deployment guide
+├── .dockerignore      -> Docker build exclusions
+└── package.json       -> Node.js dependencies
 ```
 
-## Running app locally
+## 🛠️ Local Development
 
-Before you start, you'll need to install [NodeJS](https://nodejs.org/en/download/) and [create a Discord app](https://discord.com/developers/applications) with the proper permissions:
-- `applications.commands`
-- `bot` (with Send Messages enabled)
+### Prerequisites
 
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- Discord Bot Token and App ID
+- AWS CLI (for deployment)
+- Docker (for deployment)
 
-Configuring the app is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
+### Setup
 
-### Setup project
+1. **Clone and install dependencies:**
 
-First clone the project:
-```
-git clone https://github.com/discord/discord-example-app.git
-```
-
-Then navigate to its directory and install dependencies:
-```
-cd discord-example-app
+```bash
+git clone <your-repo>
+cd govlink-bot
 npm install
 ```
-### Get app credentials
 
-Fetch the credentials from your app's settings and add them to a `.env` file (see `.env.sample` for an example). You'll need your app ID (`APP_ID`), bot token (`DISCORD_TOKEN`), and public key (`PUBLIC_KEY`).
+2. **Configure environment variables:**
+   Create a `.env` file:
 
-Fetching credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
-
-> 🔑 Environment variables can be added to the `.env` file in Glitch or when developing locally, and in the Secrets tab in Replit (the lock icon on the left).
-
-### Install slash commands
-
-The commands for the example app are set up in `commands.js`. All of the commands in the `ALL_COMMANDS` array at the bottom of `commands.js` will be installed when you run the `register` command configured in `package.json`:
-
+```env
+DISCORD_TOKEN=your_discord_bot_token
+APP_ID=your_discord_app_id
+PUBLIC_KEY=your_discord_public_key
 ```
+
+3. **Register slash commands:**
+
+```bash
 npm run register
 ```
 
-### Run the app
+4. **Run the bot locally:**
 
-After your credentials are added, go ahead and run the app:
-
-```
+```bash
 node app.js
 ```
 
-> ⚙️ A package [like `nodemon`](https://github.com/remy/nodemon), which watches for local changes and restarts your app, may be helpful while locally developing.
+## ☁️ AWS Deployment
 
-If you aren't following the [getting started guide](https://discord.com/developers/docs/getting-started), you can move the contents of `examples/app.js` (the finished `app.js` file) to the top-level `app.js`.
+This bot is designed to run on **AWS ECS with Fargate** for 24/7 availability.
 
-### Set up interactivity
+### Quick Deployment
 
-The project needs a public endpoint where Discord can send requests. To develop and test locally, you can use something like [`ngrok`](https://ngrok.com/) to tunnel HTTP traffic.
+1. **Set environment variables:**
 
-Install ngrok if you haven't already, then start listening on port `3000`:
-
-```
-ngrok http 3000
-```
-
-You should see your connection open:
-
-```
-Tunnel Status                 online
-Version                       2.0/2.0
-Web Interface                 http://127.0.0.1:4040
-Forwarding                    https://1234-someurl.ngrok.io -> localhost:3000
-
-Connections                  ttl     opn     rt1     rt5     p50     p90
-                              0       0       0.00    0.00    0.00    0.00
+```bash
+export DISCORD_TOKEN="your_token"
+export APP_ID="your_app_id"
+export PUBLIC_KEY="your_public_key"
 ```
 
-Copy the forwarding address that starts with `https`, in this case `https://1234-someurl.ngrok.io`, then go to your [app's settings](https://discord.com/developers/applications).
+2. **Deploy to AWS:**
 
-On the **General Information** tab, there will be an **Interactions Endpoint URL**. Paste your ngrok address there, and append `/interactions` to it (`https://1234-someurl.ngrok.io/interactions` in the example).
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
 
-Click **Save Changes**, and your app should be ready to run 🚀
+3. **Complete setup in AWS Console** (see [ECS_DEPLOYMENT.md](ECS_DEPLOYMENT.md) for details)
 
-## Other resources
-- Read **[the documentation](https://discord.com/developers/docs/intro)** for in-depth information about API features.
-- Browse the `examples/` folder in this project for smaller, feature-specific code examples
-- Join the **[Discord Developers server](https://discord.gg/discord-developers)** to ask questions about the API, attend events hosted by the Discord API team, and interact with other devs.
-- Check out **[community resources](https://discord.com/developers/docs/topics/community-resources#community-resources)** for language-specific tools maintained by community members.
+### Why ECS over Lambda?
+
+- ✅ **Always-on**: No cold starts
+- ✅ **WebSocket support**: Proper Discord.js gateway connections
+- ✅ **Cost effective**: ~$30/month for 24/7 operation
+- ✅ **Better for bots**: Designed for long-running applications
+
+## 🎮 Bot Commands
+
+### `/ask [your message]`
+
+Ask the bot for birthday information. The bot will:
+
+1. Extract numbers from your message
+2. Fetch random birthday data for that many entries
+3. Display results in beautiful paginated embeds
+4. Handle errors gracefully if no number is found
+
+**Examples:**
+
+- `/ask tell me about 5 birthdays`
+- `/ask show me 10 random people born today`
+- `/ask give me 3 birthday facts`
+
+## 🔧 Discord Permissions
+
+Your bot needs these permissions:
+
+- `Send Messages`
+- `Use Slash Commands`
+- `Embed Links`
+- `Add Reactions` (for pagination)
+
+## 📚 API Integration
+
+The bot fetches birthday data from a public API and formats it into Discord embeds with:
+
+- Person's name and birth year
+- Age calculation
+- Birthday facts and trivia
+- Pagination for multiple results
+
+## 🏗️ Architecture
+
+```
+Discord API ←→ Discord.js Gateway ←→ ECS Fargate Task
+                                           ↓
+                                    CloudWatch Logs
+```
+
+## 🔍 Monitoring
+
+- **Logs**: Available in AWS CloudWatch at `/ecs/govlink-bot`
+- **Metrics**: ECS service metrics in AWS Console
+- **Health**: Bot status visible in Discord server
+
+## 📖 Detailed Documentation
+
+- **[ECS_DEPLOYMENT.md](ECS_DEPLOYMENT.md)** - Complete AWS deployment guide
+- **[Discord Developer Portal](https://discord.com/developers/applications)** - Manage your bot settings
+
+## 💡 Troubleshooting
+
+### Bot not responding:
+
+1. Check ECS service is running in AWS Console
+2. Verify bot token and permissions
+3. Check CloudWatch logs for errors
+
+### Deployment issues:
+
+1. Ensure AWS CLI is configured
+2. Check IAM permissions for ECS/ECR
+3. Verify Docker is running
+4. See [ECS_DEPLOYMENT.md](ECS_DEPLOYMENT.md) for detailed troubleshooting
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test locally
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Need help?** Check out the [Discord Developer Documentation](https://discord.com/developers/docs/intro) or join the [Discord Developers server](https://discord.gg/discord-developers).

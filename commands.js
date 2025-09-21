@@ -12,12 +12,12 @@ const TEST_COMMAND = {
 
 const ASK_COMMAND = {
   name: "ask",
-  description: "Ask for birthday data - include a number in your message (e.g., 'get me 5 people')",
+  description: "Ask questions about Malaysian government services, summons, taxes, licenses, etc.",
   options: [
     {
       type: 3, // STRING
       name: "message",
-      description: "Your request (must include a number between 1-50)",
+      description: "Your question about government services",
       required: true,
     },
   ],

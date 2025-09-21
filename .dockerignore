@@ -12,3 +12,4 @@ bot.log
 app_old.js
 Dockerfile
 .dockerignore
+aws
